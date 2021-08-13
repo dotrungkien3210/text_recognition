@@ -1,6 +1,6 @@
 import string
 import argparse
-
+import csv
 import torch
 import torch.backends.cudnn as cudnn
 import torch.utils.data
@@ -53,7 +53,6 @@ def demo(opt):
 
             if 'CTC' in opt.Prediction:
                 preds = model(image, text_for_pred)
-
                 # Select max probabilty (greedy decoding) then decode index to character
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size)
                 _, preds_index = preds.max(2)
@@ -62,7 +61,6 @@ def demo(opt):
 
             else:
                 preds = model(image, text_for_pred, is_train=False)
-
                 # select max probabilty (greedy decoding) then decode index to character
                 _, preds_index = preds.max(2)
                 preds_str = converter.decode(preds_index, length_for_pred)
@@ -77,6 +75,7 @@ def demo(opt):
 
             preds_prob = F.softmax(preds, dim=2)
             preds_max_prob, _ = preds_prob.max(dim=2)
+            predictColumn = []
             for img_name, pred, pred_max_prob in zip(image_path_list, preds_str, preds_max_prob):
                 if 'Attn' in opt.Prediction:
                     pred_EOS = pred.find('[s]')
@@ -85,9 +84,23 @@ def demo(opt):
 
                 # calculate confidence score (= multiply of pred_max_prob)
                 confidence_score = pred_max_prob.cumprod(dim=0)[-1]
-
+                predictColumn.append(pred)
                 print(f'{img_name:25s}\t{pred:25s}\t{confidence_score:0.4f}')
                 log.write(f'{img_name:25s}\t{pred:25s}\t{confidence_score:0.4f}\n')
+            with open('data.csv', 'r') as csvinput:
+                with open('output.csv', 'w') as csvoutput:
+                    writer = csv.writer(csvoutput, lineterminator='\n')
+                    reader = csv.reader(csvinput)
+                    all = []
+                    row = next(reader)
+                    row.append('8')
+                    all.append(row)
+                    i = 0
+                    for row in reader:
+                        row.append(predictColumn[i])
+                        i = i + 1
+                        all.append(row)
+                    writer.writerows(all)
 
             log.close()
 # bắt đầu chạy
